@@ -26,12 +26,9 @@ jobs:
 
       - name: 运行签到脚本
         env:
-          # 基本配置
-          NS_COOKIE: ${{ secrets.NS_COOKIE }}
-          USER: ${{ secrets.USER }}
-          PASS: ${{ secrets.PASS }}
-          NS_RANDOM: ${{ secrets.NS_RANDOM }}
-
+          # 多账号配置
+          ACCOUNTS: ${{ secrets.ACCOUNTS }}
+          
           # 验证码服务配置
           SOLVER_TYPE: ${{ secrets.SOLVER_TYPE }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
