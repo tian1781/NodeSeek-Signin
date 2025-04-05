@@ -14,6 +14,7 @@
   - 自建 CloudFreed 服务（免费）
   - YesCaptcha 商业服务（付费/赠送）
 - 📱 支持多种通知推送渠道
+- 🔄 支持多账号自动换号签到
 
 ## 🚀 使用方法
 
@@ -28,6 +29,7 @@
 | `TG_BOT_TOKEN` | 可选 | Telegram 机器人的 Token，用于通知签到结果 |
 | `TG_USER_ID` | 可选 | Telegram 用户 ID，用于接收通知 |
 | `TG_THREAD_ID` | 可选 | Telegram 超级群组话题 ID，用于在特定话题中发送通知 |
+| `ACCOUNTS` | 可选 | 多账号配置，JSON 格式，详见多账号配置说明 |
 
 > **注意**：若仅设置 Cookie 但未配置验证码服务，当 Cookie 过期后无法自动登录获取新 Cookie。
 
@@ -82,6 +84,36 @@ docker run -itd --name cloudfreed -p 3000:3000 \
 > - 国际节点：`https://api.yescaptcha.com`（默认）
 > - 国内节点：`https://cn.yescaptcha.com`
 
+### 方式四：多账号配置
+
+支持同时为多个账号进行签到，配置方式如下：
+
+1. 设置 `ACCOUNTS` 环境变量为 JSON 数组格式，包含多个账号信息：
+
+```json
+[
+  {
+    "username": "用户名1",
+    "password": "密码1",
+    "cookie": "可选，已有的Cookie"
+  },
+  {
+    "username": "用户名2",
+    "password": "密码2",
+    "cookie": "可选，已有的Cookie"
+  },
+  {
+    "cookie": "仅Cookie账号的Cookie信息"
+  }
+]
+```
+
+2. 每个账号可以只配置用户名和密码，或只配置Cookie，或两者都配置
+
+3. 系统会优先使用配置的Cookie进行签到，若Cookie失效则尝试使用用户名密码登录
+
+> **注意**：使用多账号配置时，单账号的 `USER`、`PASS` 和 `NS_COOKIE` 配置仍然有效，会被自动添加到账号列表中。
+
 ## 🔧 环境变量完整说明
 
 | 变量名称 | 必要性 | 默认值 | 说明 |
@@ -93,6 +125,7 @@ docker run -itd --name cloudfreed -p 3000:3000 \
 | `SOLVER_TYPE` | 可选 | turnstile | 验证码解决方案（turnstile/yescaptcha） |
 | `API_BASE_URL` | 条件必需 | - | CloudFreed 服务地址，当 SOLVER_TYPE=turnstile 时必填 |
 | `CLIENTT_KEY` | 必需 | - | 验证码服务客户端密钥 |
+| `ACCOUNTS` | 可选 | - | 多账号配置，JSON格式数组 |
 | 各类通知变量 | 可选 | - | 支持多种推送通知平台配置 |
 
 ## 📊 验证码服务对比

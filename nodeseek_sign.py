@@ -2,6 +2,7 @@
 import os
 import sys
 import time
+import json
 from curl_cffi import requests
 from turnstile_solver import TurnstileSolver, TurnstileSolverError
 from yescaptcha import YesCaptchaSolver, YesCaptchaSolverError
@@ -14,6 +15,9 @@ NS_COOKIE = os.environ.get("NS_COOKIE", "")
 USER = os.environ.get("USER", "")
 PASS = os.environ.get("PASS", "")
 SOLVER_TYPE = os.environ.get("SOLVER_TYPE", "turnstile")
+
+# 多账号配置
+ACCOUNTS = os.environ.get("ACCOUNTS", "")
 
 def load_send():
     global send
@@ -33,18 +37,50 @@ def load_send():
 
 load_send()
 
+def load_accounts():
+    """加载多账号配置"""
+    accounts = []
+    
+    # 优先使用 ACCOUNTS 环境变量
+    if ACCOUNTS:
+        try:
+            # 尝试解析 JSON 格式的账号配置
+            accounts = json.loads(ACCOUNTS)
+            print(f"从环境变量加载了 {len(accounts)} 个账号")
+            return accounts
+        except json.JSONDecodeError:
+            print("解析 ACCOUNTS 环境变量失败，格式应为 JSON 数组")
+    
+    # 兼容单账号配置
+    if USER and PASS:
+        accounts.append({
+            "username": USER,
+            "password": PASS,
+            "cookie": NS_COOKIE
+        })
+        print("使用单账号配置")
+    elif NS_COOKIE:
+        accounts.append({
+            "username": "",
+            "password": "",
+            "cookie": NS_COOKIE
+        })
+        print("仅使用 Cookie 配置")
+    
+    return accounts
 
-def session_login():
+
+def session_login(username, password):
     # 根据环境变量选择使用哪个验证码解决器
     try:
         if SOLVER_TYPE.lower() == "yescaptcha":
-            print("正在使用 YesCaptcha 解决验证码...")
+            print(f"正在使用 YesCaptcha 解决验证码来登录账号 {username}...")
             solver = YesCaptchaSolver(
                 api_base_url="https://api.yescaptcha.com",
                 client_key=CLIENTT_KEY
             )
         else:  # 默认使用 turnstile_solver
-            print("正在使用 TurnstileSolver 解决验证码...")
+            print(f"正在使用 TurnstileSolver 解决验证码来登录账号 {username}...")
             solver = TurnstileSolver(
                 api_base_url=API_BASE_URL,
                 client_key=CLIENTT_KEY
@@ -91,8 +127,8 @@ def session_login():
     }
     
     data = {
-        "username": USER,
-        "password": PASS,
+        "username": username,
+        "password": password,
         "token": token,
         "source": "turnstile"
     }
@@ -119,8 +155,8 @@ def session_login():
         return None
 
 
-def sign():
-    if not NS_COOKIE:
+def sign(cookie):
+    if not cookie:
         print("请先设置Cookie")
         return "no_cookie", ""
         
@@ -129,7 +165,7 @@ def sign():
         'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
         'origin': "https://www.nodeseek.com",
         'referer': "https://www.nodeseek.com/board",
-        'Cookie': NS_COOKIE
+        'Cookie': cookie
     }
 
     try:
@@ -157,41 +193,83 @@ def sign():
         print("发生异常:", e)
         return "error", str(e)
 
+def get_username_from_cookie(cookie):
+    """尝试从Cookie中获取用户名信息，用于日志区分"""
+    if not cookie:
+        return "未知用户"
+    try:
+        # 创建带Cookie的会话
+        headers = {
+            'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+            'Cookie': cookie
+        }
+        response = requests.get("https://www.nodeseek.com/api/account/userInfo", headers=headers, impersonate="chrome110")
+        user_info = response.json()
+        if user_info.get('success') and user_info.get('data'):
+            return user_info['data'].get('username', '未知用户')
+    except Exception as e:
+        print(f"获取用户信息失败: {e}")
+    return "未知用户"
+
 if __name__ == "__main__":
-    # 尝试使用现有Cookie签到
-    sign_result, sign_message = "no_cookie", ""
+    # 加载账号配置
+    accounts = load_accounts()
     
-    if NS_COOKIE:
-        sign_result, sign_message = sign()
+    if not accounts:
+        print("未配置任何账号信息，程序退出")
+        sys.exit(1)
     
-    # 处理签到结果
-    if sign_result in ["success", "already_signed"]:
-        status = "签到成功" if sign_result == "success" else "今天已经签到过了"
-        print(status)
-        if hadsend:
-            send("nodeseek签到", f"{sign_message}")
-    else:
-        # 签到失败或没有Cookie，尝试登录
-        if USER and PASS:
-            print("尝试登录获取新Cookie...")
-            cookie = session_login()
-            if cookie:
-                print("登录成功，使用新Cookie签到")
-                NS_COOKIE = cookie
-                sign_result, sign_message = sign()
-                
-                status = "签到成功" if sign_result in ["success", "already_signed"] else "签到失败"
-                print(status)
-                if hadsend:
-                    message = f"{sign_message}"
-                    if sign_result in ["success", "already_signed"]:
-                        message += f"\nCookie: {cookie}"
-                    send("nodeseek签到", message)
-            else:
-                print("登录失败")
-                if hadsend:
-                    send("nodeseek登录", "登录失败")
+    # 记录所有账号的签到结果
+    all_results = []
+    
+    # 遍历每个账号进行签到
+    for i, account in enumerate(accounts):
+        username = account.get("username", "")
+        password = account.get("password", "")
+        cookie = account.get("cookie", "")
+        
+        print(f"\n开始处理第 {i+1}/{len(accounts)} 个账号")
+        
+        # 如果有Cookie，先尝试使用现有Cookie签到
+        sign_result, sign_message = "no_cookie", ""
+        account_identifier = username or get_username_from_cookie(cookie) or f"账号{i+1}"
+        
+        if cookie:
+            print(f"使用现有Cookie为账号 {account_identifier} 签到...")
+            sign_result, sign_message = sign(cookie)
+        
+        # 处理签到结果
+        if sign_result in ["success", "already_signed"]:
+            status = "签到成功" if sign_result == "success" else "今天已经签到过了"
+            print(f"账号 {account_identifier} {status}")
+            all_results.append(f"账号 {account_identifier}: {status} - {sign_message}")
         else:
-            print("无法执行操作：没有有效Cookie且未设置用户名密码")
-            if hadsend:
-                send("nodeseek签到", "无法执行操作：没有有效Cookie且未设置用户名密码")
+            # 签到失败或没有Cookie，尝试登录
+            if username and password:
+                print(f"账号 {account_identifier} 尝试登录获取新Cookie...")
+                new_cookie = session_login(username, password)
+                if new_cookie:
+                    print(f"账号 {account_identifier} 登录成功，使用新Cookie签到")
+                    sign_result, sign_message = sign(new_cookie)
+                    
+                    status = "签到成功" if sign_result in ["success", "already_signed"] else "签到失败"
+                    result_msg = f"账号 {account_identifier}: {status} - {sign_message}"
+                    all_results.append(result_msg)
+                    
+                    # 更新账号的Cookie
+                    account["cookie"] = new_cookie
+                else:
+                    print(f"账号 {account_identifier} 登录失败")
+                    all_results.append(f"账号 {account_identifier}: 登录失败")
+            else:
+                print(f"账号 {account_identifier} 无法执行操作：没有有效Cookie且未设置用户名密码")
+                all_results.append(f"账号 {account_identifier}: 无法执行操作 - 没有有效Cookie且未设置用户名密码")
+    
+    # 汇总所有账号的签到结果
+    summary = "\n".join(all_results)
+    print("\n=== 签到汇总 ===")
+    print(summary)
+    
+    # 发送通知
+    if hadsend:
+        send("nodeseek多账号签到汇总", summary)
