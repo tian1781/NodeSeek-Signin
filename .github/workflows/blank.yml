@@ -41,7 +41,8 @@ jobs:
 
       - name: 运行签到脚本
         env:
-          # 多账号配置（从环境变量文件读取）
+          # 多账号配置
+          ACCOUNTS: ${{ env.ACCOUNTS }}
           # 验证码服务配置
           SOLVER_TYPE: ${{ secrets.SOLVER_TYPE }}
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
