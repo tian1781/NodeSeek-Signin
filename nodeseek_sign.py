@@ -19,6 +19,14 @@ SOLVER_TYPE = os.environ.get("SOLVER_TYPE", "turnstile")
 # 多账号配置
 ACCOUNTS = os.environ.get("ACCOUNTS", "")
 
+# 调试信息
+print("=== 环境变量调试信息 ===")
+print(f"API_BASE_URL = '{API_BASE_URL}'")
+print(f"CLIENTT_KEY = '{CLIENTT_KEY}'")
+print(f"SOLVER_TYPE = '{SOLVER_TYPE}'")
+print(f"ACCOUNTS = '{ACCOUNTS}'")
+print("======================")
+
 def load_send():
     global send
     global hadsend
