@@ -35,18 +35,20 @@ jobs:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           CLIENTT_KEY: ${{ secrets.CLIENTT_KEY }}
 
-      - name: 直接设置 ACCOUNTS 变量
+      - name: 直接设置所有必要变量
         run: |
           echo 'ACCOUNTS=[{"username":"辣叔叔","password":"haozi1781"},{"username":"昆吾断鸿","password":"haozi1781"}]' >> $GITHUB_ENV
+          echo 'API_BASE_URL=http://123.120.59.145:3000' >> $GITHUB_ENV
+          echo 'CLIENTT_KEY=haozi1781' >> $GITHUB_ENV
+          echo 'SOLVER_TYPE=turnstile' >> $GITHUB_ENV
 
       - name: 运行签到脚本
         env:
-          # 多账号配置
+          # 使用直接设置的变量
           ACCOUNTS: ${{ env.ACCOUNTS }}
-          # 验证码服务配置
-          SOLVER_TYPE: ${{ secrets.SOLVER_TYPE }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          CLIENTT_KEY: ${{ secrets.CLIENTT_KEY }}
+          API_BASE_URL: ${{ env.API_BASE_URL }}
+          CLIENTT_KEY: ${{ env.CLIENTT_KEY }}
+          SOLVER_TYPE: ${{ env.SOLVER_TYPE }}
           
           # 通知推送配置
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
